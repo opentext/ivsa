@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Intelligent Viewing sample application</title>
+    <link rel="icon" href="assets/img/favicon.svg" />
+    <link rel="stylesheet" href="assets/css/normalize.css" />
+    <link rel="stylesheet" href="assets/css/integration.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Intelligent Viewing Sample Application</h1>
+    </header>
+    <main>
+      <section class="integration-elements">
+        <div class="controls hidden">
+          <h2>Layout controls</h2>
+        </div>
+        <div class="publication-controls hidden">
+          <h2>Select publication</h2>
+          <div class="form-control binder-control">
+            <label for="view-binder-toggle">View all documents in Multi-file view</label>
+            <input id="view-binder-toggle" name="view-binder-toggle" type="checkbox" />
+          </div>
+          <div class="form-control primary-control">
+            <label for="primary-publication-selector">Primary publication</label>
+            <select id="primary-publication-selector" name="primary-publication-selector"></select>
+          </div>
+          <div class="form-control compare-control hidden">
+            <label for="primary-publication-selector">Compare publication</label>
+            <select id="compare-publication-selector" name="compare-publication-selector"></select>
+          </div>
+        </div>
+        <div class="event-display">
+          <h2>Event log</h2>
+          <ul id="event-log"></ul>
+        </div>
+      </section>
+      <section id="bravaViewRoot" class="viewer-container"></section>
+    </main>
+
+    <script type="text/javascript" src="assets/js/polyfills/polyfill-prepend.js"></script>
+    <script type="text/javascript" src="assets/js/polyfills/polyfill-promise.js"></script>
+    <script type="text/javascript" src="assets/js/polyfills/polyfill-fetch.js"></script>
+    <script type="text/javascript" src="env.js"></script>
+    <script type="text/javascript" src="auth.js"></script>
+    <script type="text/javascript" src="publication.js"></script>
+    <script type="text/javascript" src="assets/js/integration.js"></script>
+  </body>
+</html>

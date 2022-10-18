@@ -1,0 +1,147 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+require('dotenv').config()
+
+const cli = require('../cli')
+const app = require('../app')
+const fs = require('fs')
+const open = require('open')
+const jks = require('jks-js')
+const http = require('http')
+const https = require('https')
+
+let server
+let port
+let token
+
+const timeout = ms => {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+const writePublications = (pubs = {}) => `window.publications=${JSON.stringify(pubs, null, 2)}`
+  
+const normalizePort = val => {
+  const port = parseInt(val, 10)
+
+  if (isNaN(port)) {
+    // named pipe
+    return val
+  }
+
+  if (port >= 0) {
+    // port number
+    return port
+  }
+
+  return false
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error
+  }
+
+  const bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges')
+      process.exit(1)
+      break
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use')
+      process.exit(1)
+      break
+    default:
+      throw error
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  if (server) {
+    const addr = server.address()
+    const bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + addr.port
+    console.log('Listening on', bind)
+  }
+}
+
+cli.validateOptions()
+cli.login()
+.then(loginRes => {
+  token = loginRes
+  console.log('Starting OpenText Intelligent Viewing Sample Application')
+  cli.dumpOptions()
+  
+  /**
+   * Get port from environment and store in Express.
+   */
+  
+  port = port = normalizePort(process.env.PORT || '5000');
+  app.set('port', port)
+  
+  /**
+   * Create HTTP/HTTPS server.
+   */
+  const keyStorePath = process.env.KEYSTORE_PATH
+  const keyStorePassword = process.env.KEYSTORE_PASSWORD
+  if (keyStorePath && keyStorePassword){
+    const keystore = jks.toPem(
+      fs.readFileSync(keyStorePath),
+      keyStorePassword
+    )
+    server = https.createServer(keystore[Object.keys(keystore)[0]], app)
+  } else {
+    server = http.createServer(app)
+  }
+    
+  /**
+   * Listen on provided port, on all network interfaces.
+   */
+  
+  server.listen(port)
+  server.on('error', onError)
+  server.on('listening', onListening)
+  
+  // fs.watch('./anchor', (event, filename) => {
+  //   process.exit(0)
+  // })
+  return cli.publish(token.access_token)
+})
+.then(publications => {
+  // Populate env.js before opening the viewer
+  fs.writeFileSync(
+    `${process.cwd()}/src/public/env.js`,
+    `window.viewerAuthority="${process.env.VIEWER_AUTHORITY}"\n` +
+    `window.markupAuthority="${process.env.MARKUP_AUTHORITY}"\n` +
+    `window.highlightAuthority="${process.env.HIGHLIGHT_AUTHORITY}"\n` +
+    `window.publicationAuthority="${process.env.PUBLICATION_AUTHORITY}"`)
+
+  if (cli.usePublicationJS()) {
+    console.log(`Using the publications from publication js`)
+  } else {
+    console.log(`Processed ${publications.length} publication${(publications.length > 1) ? 's' : ''} for input ${cli.options.input}`)
+    fs.writeFileSync(
+      `${process.cwd()}/src/public/publication.js`,
+      `${writePublications(publications)}`)
+  }
+
+  return cli.options.noui ? Promise.resolve() : open(`http://localhost:${port}`)
+})
+.then(() => {
+  console.log('Initialization process complete')
+})
+.catch(err => {
+  console.log('Authentication or service startup failure', err)
+  process.exit(1)
+})
