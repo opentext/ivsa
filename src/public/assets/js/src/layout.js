@@ -257,7 +257,8 @@ const tabContainerWithMarkups = {
     { component: 'ThumbnailPane', title: 'tab.thumbnails' },
     { component: 'StampRasterPane', title: 'tab.stampRaster', layoutKey: 'markupTools' },
     { component: 'MarkupPane', title: 'tab.tools', layoutKey: 'markupTools' },
-    { component: 'MarkupDetails', title: 'tab.markups' }
+    { component: 'MarkupDetails', title: 'tab.markups' },
+    { component: 'SearchResultsPane', title: 'tab.searchResults' }
   ]
 }
 
@@ -312,7 +313,11 @@ const annotationsLayout = {
       { component: 'ExportButton', format: 'pdf' }
     ],
     center: [{ component: 'TitleText', style: { marginLeft: '2em' } }],
-    right: [{ component: 'CloseButton' }]
+    right: [
+      { component: 'SearchTextInput', style: { right: '6em' } },
+      { component: 'SearchToggleButton', size: 20 },
+      { component: 'CloseButton' }
+    ]
   },
   container: { component: 'FullSizeSplitPane', layoutKey: 'mainContainer' },
   mainContainer: [
@@ -388,9 +393,7 @@ const textCompareLayout = {
       { component: 'ExportButton', format: 'pdf' },
       { component: 'ZoomToRectangleButton' },
       { component: 'ZoomExtentsButton' },
-      { component: 'ZoomWidthButton' },
-      { component: 'ZoomInButton' },
-      { component: 'ZoomOutButton' }
+      { component: 'ZoomWidthButton' }
     ],
     center: [],
     right: [

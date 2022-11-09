@@ -22,8 +22,9 @@ export const downloadExportedFile = (e) => {
 
   const sourceDocName = loadSources[0].filenameHint
 
-  const artifact =
-    e.detail._embedded['pa:get_publication_artifacts'][0]._embedded['ac:get_artifact_content']
+  const artifact = e.detail._embedded['pa:get_publication_artifacts'].find(
+    (e) => e._embedded['ac:get_artifact_content'].urlTemplate
+  )._embedded['ac:get_artifact_content']
 
   const exportType = artifact.acceptHint
     ? artifact.acceptHint === 'application/pdf'
