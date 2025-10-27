@@ -4,7 +4,7 @@ const auth = require('./auth')
 const publisher = require('./publisher')
 
 const dumpOptions = () => {
-  Object.keys(args.options).forEach((key) => {
+  Object.keys(args.options).forEach(key => {
     if (key !== 'password') {
       console.log(`${key}: ${args.options[key]}`)
     }
@@ -27,12 +27,20 @@ const usePublicationJS = () => {
   return args.options.usepjs
 }
 
+const useQuickView = () => {
+  return args.options.quickview
+}
+
 const login = async () => {
   return await auth.login(args.options.user, args.options.password)
 }
 
-const publish = async (token) => {
-  return args.options.usepjs ? undefined : await publisher.publish(token, args.options.input)
+const publish = async token => {
+  return args.options.usepjs
+    ? undefined
+    : args.options.quickview
+    ? await publisher.uploadOnly(token, args.options.input)
+    : await publisher.publish(token, args.options.input)
 }
 
 module.exports = {
@@ -41,5 +49,6 @@ module.exports = {
   usePublicationJS,
   login,
   publish,
-  dumpOptions
+  dumpOptions,
+  useQuickView
 }

@@ -4,6 +4,7 @@ const getIntegrationHtml = require('./getIntegrationHtml')
 const getV1 = require('./getV1')
 
 router.get('/', getIntegrationHtml)
+router.get('/ivview', getIntegrationHtml)
 
 router.get('/ivsa/api/v1', getV1), router.get('/ivsa/api/v1/refreshToken', authapi.refreshToken)
 

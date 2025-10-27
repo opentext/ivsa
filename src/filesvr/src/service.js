@@ -36,7 +36,7 @@ if (keyStorePath && keyStorePassword) {
 console.log(`****************************************************************`)
 console.log(`**              ivsa simple file storage service             ***`)
 console.log(`****************************************************************`)
-console.log(`Server running on port ${port}...`)
+console.log(`Server is running ...`)
 
 /**
  * Listen on provided port, on all network interfaces.
@@ -80,11 +80,11 @@ function onError(error) {
   // handle specific listen errors with friendly messages
   switch (error.code) {
     case 'EACCES':
-      console.error(bind + ' requires elevated privileges')
+      console.error('address requires elevated privileges')
       process.exit(1)
       break
     case 'EADDRINUSE':
-      console.error(bind + ' is already in use')
+      console.error('address is already in use')
       process.exit(1)
       break
     default:

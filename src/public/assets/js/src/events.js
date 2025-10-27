@@ -35,11 +35,8 @@ export const downloadExportedFile = (e) => {
   const urlTemplate = artifact.urlTemplate
 
   const content = artifact.contentLinks[0]
-  const url = urlTemplate
-    .replace('{id}', content.id)
-    .replace('{name}', content.name)
-    .replace('{type}', content.type)
-    .replace('{file}', content.file)
+  const placeholders = Array.from(urlTemplate.matchAll(/(\{\w+\})/gi)).map(p => p[0])
+  const url = placeholders.reduce((acc, p) => acc.replace(p, content[p.slice(1, p.length - 1)]), urlTemplate)
   return fetch(url, {
     method: 'GET',
     responseType: 'arraybuffer',
@@ -79,6 +76,14 @@ export const setupEventListeners = (viewerKey) => {
 
   window.addEventListener(viewerKey + '-publicationIssues', (e) =>
     logEvent('Publication issues occurred', e.detail)
+  )
+  
+  window.addEventListener(viewerKey + '-pdfJsLibIssues', (e) =>
+    logEvent('pdfJs.lib issues occurred', e.detail)
+  )
+
+  window.addEventListener(viewerKey + '-tiffJsLibIssues', (e) =>
+    logEvent('tiffJs.lib issues occurred', e.detail)
   )
 
   window.addEventListener(viewerKey + '-modalOpened', (e) => logEvent('Modal opened', e.detail))
