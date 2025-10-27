@@ -12,16 +12,21 @@ const open = require('open')
 const jks = require('jks-js')
 const http = require('http')
 const https = require('https')
+const os = require('os')
 
 let server
 let port
 let token
+let host
+let protocol
 
 const timeout = ms => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
-const writePublications = (pubs = {}) => `window.publications=${JSON.stringify(pubs, null, 2)}`
-  
+const writePublications = (pubs = []) => `window.publications=${JSON.stringify(pubs, null, 2)}`
+const writeSourceFile = (sourceFile = {}, pubs = []) => `window.sourceFile=${JSON.stringify(sourceFile, null, 2)}
+window.publications=${JSON.stringify(pubs, null, 2)}`
+
 const normalizePort = val => {
   const port = parseInt(val, 10)
 
@@ -77,71 +82,91 @@ function onListening() {
 }
 
 cli.validateOptions()
-cli.login()
-.then(loginRes => {
-  token = loginRes
-  console.log('Starting OpenText Intelligent Viewing Sample Application')
-  cli.dumpOptions()
-  
-  /**
-   * Get port from environment and store in Express.
-   */
-  
-  port = port = normalizePort(process.env.PORT || '5000');
-  app.set('port', port)
-  
-  /**
-   * Create HTTP/HTTPS server.
-   */
-  const keyStorePath = process.env.KEYSTORE_PATH
-  const keyStorePassword = process.env.KEYSTORE_PASSWORD
-  if (keyStorePath && keyStorePassword){
-    const keystore = jks.toPem(
-      fs.readFileSync(keyStorePath),
-      keyStorePassword
-    )
-    server = https.createServer(keystore[Object.keys(keystore)[0]], app)
-  } else {
-    server = http.createServer(app)
-  }
-    
-  /**
-   * Listen on provided port, on all network interfaces.
-   */
-  
-  server.listen(port)
-  server.on('error', onError)
-  server.on('listening', onListening)
-  
-  // fs.watch('./anchor', (event, filename) => {
-  //   process.exit(0)
-  // })
-  return cli.publish(token.access_token)
-})
-.then(publications => {
-  // Populate env.js before opening the viewer
-  fs.writeFileSync(
-    `${process.cwd()}/src/public/env.js`,
-    `window.viewerAuthority="${process.env.VIEWER_AUTHORITY}"\n` +
-    `window.markupAuthority="${process.env.MARKUP_AUTHORITY}"\n` +
-    `window.highlightAuthority="${process.env.HIGHLIGHT_AUTHORITY}"\n` +
-    `window.publicationAuthority="${process.env.PUBLICATION_AUTHORITY}"`)
+cli
+  .login()
+  .then(loginRes => {
+    token = loginRes
+    console.log('Starting OpenText Intelligent Viewing Sample Application')
+    cli.dumpOptions()
 
-  if (cli.usePublicationJS()) {
-    console.log(`Using the publications from publication js`)
-  } else {
-    console.log(`Processed ${publications.length} publication${(publications.length > 1) ? 's' : ''} for input ${cli.options.input}`)
+    /**
+     * Get port from environment and store in Express.
+     */
+
+    port = normalizePort(process.env.PORT || '5000')
+    app.set('port', port)
+
+    host = process.env.HOST || os.hostname() || 'localhost'
+
+    /**
+     * Create HTTP/HTTPS server.
+     */
+    const keyStorePath = process.env.KEYSTORE_PATH
+    const keyStorePassword = process.env.KEYSTORE_PASSWORD
+    if (keyStorePath && keyStorePassword) {
+      const keystore = jks.toPem(fs.readFileSync(keyStorePath), keyStorePassword)
+      server = https.createServer(keystore[Object.keys(keystore)[0]], app)
+      protocol = 'https'
+    } else {
+      server = http.createServer(app)
+      protocol = 'http'
+    }
+
+    /**
+     * Listen on provided port, on all network interfaces.
+     */
+
+    server.listen(port)
+    server.on('error', onError)
+    server.on('listening', onListening)
+
+    // fs.watch('./anchor', (event, filename) => {
+    //   process.exit(0)
+    // })
+    return cli.publish(token.access_token)
+  })
+  .then(publications => {
+    // Populate env.js before opening the viewer
     fs.writeFileSync(
-      `${process.cwd()}/src/public/publication.js`,
-      `${writePublications(publications)}`)
-  }
+      `${process.cwd()}/src/public/env.js`,
+      `window.viewerAuthority="${process.env.VIEWER_AUTHORITY}"\n` +
+        `window.markupAuthority="${process.env.MARKUP_AUTHORITY}"\n` +
+        `window.highlightAuthority="${process.env.HIGHLIGHT_AUTHORITY}"\n` +
+        `window.publicationAuthority="${process.env.PUBLICATION_AUTHORITY}"\n` +
+        `window.ivsaAuthority="${protocol}://${host}:${port}"`
+    )
 
-  return cli.options.noui ? Promise.resolve() : open(`http://localhost:${port}`)
-})
-.then(() => {
-  console.log('Initialization process complete')
-})
-.catch(err => {
-  console.log('Authentication or service startup failure', err)
-  process.exit(1)
-})
+    if (cli.usePublicationJS()) {
+      console.log(`Using the publications from publication js`)
+    } else if (cli.useQuickView()) {
+      console.log(
+        `Processed ${publications.length} quick view publication${publications.length > 1 ? 's' : ''} for input ${
+          cli.options.input
+        }`
+      )
+      fs.writeFileSync(
+        `${process.cwd()}/src/public/publication.js`,
+        `${writeSourceFile(publications[0], publications)}`
+      )
+    } else {
+      console.log(
+        `Processed ${publications.length} publication${publications.length > 1 ? 's' : ''} for input ${
+          cli.options.input
+        }`
+      )
+      fs.writeFileSync(`${process.cwd()}/src/public/publication.js`, `${writePublications(publications)}`)
+    }
+
+    return cli.options.noui
+      ? Promise.resolve()
+      : cli.options.ivview
+      ? open(`${protocol}://${host}:${port}/ivview`)
+      : open(`${protocol}://${host}:${port}`)
+  })
+  .then(() => {
+    console.log('Initialization process complete')
+  })
+  .catch(err => {
+    console.log('Authentication or service startup failure', err)
+    process.exit(1)
+  })

@@ -424,9 +424,9 @@ const layouts = [
     name: 'Simple',
     layout: sampleLayout,
     onSelected: (viewer) => {
-      setPredicates(viewer)
       clearViewer(viewer)
-      enablePublicationSelector(window.publications, false)
+      setPredicates(viewer)
+      enablePublicationSelector(viewer, window.publications, false)
       const primaryPublicationSelector = document.querySelector('#primary-publication-selector')
       viewer.viewPublication(primaryPublicationSelector.value || window.publications[0].id)
     }
@@ -435,12 +435,12 @@ const layouts = [
     name: 'Simple with annotations',
     layout: annotationsLayout,
     onSelected: (viewer) => {
-      setPredicates(viewer)
       clearViewer(viewer)
+      setPredicates(viewer)
       viewer.setActiveTab('tab.tools', 'tabContainerWithMarkups')
       viewer.setSidebarWidth(350, 'tabContainerWithMarkups')
       viewer.setSidebarOpen(true, 'tabContainerWithMarkups')
-      enablePublicationSelector(window.publications, false)
+      enablePublicationSelector(viewer, window.publications, false)
       const primaryPublicationSelector = document.querySelector('#primary-publication-selector')
       viewer.viewPublication(primaryPublicationSelector.value || window.publications[0].id)
     }
@@ -449,6 +449,7 @@ const layouts = [
     name: 'Graphical compare',
     layout: graphicalCompareLayout,
     onSelected: (viewer) => {
+      clearViewer(viewer)
       setPredicates(viewer)
       viewer.setActiveTab('tab.tools', 'tabContainerWithMarkups')
       viewer.setSidebarWidth(350, 'tabContainerWithMarkups')
@@ -460,13 +461,14 @@ const layouts = [
         comparePublicationSelector.value || window.publications[0].id,
         'sideBySide'
       )
-      enablePublicationSelector(window.publications, true)
+      enablePublicationSelector(viewer, window.publications, true)
     }
   },
   {
     name: 'Text compare',
     layout: textCompareLayout,
     onSelected: (viewer) => {
+      clearViewer(viewer)
       setPredicates(viewer)
       viewer.setActiveTab('tab.tools', 'tabContainerWithMarkups')
       viewer.setSidebarWidth(350, 'tabContainerWithMarkups')
@@ -478,7 +480,7 @@ const layouts = [
         comparePublicationSelector.value || window.publications[0].id,
         'text'
       )
-      enablePublicationSelector(window.publications, true)
+      enablePublicationSelector(viewer, window.publications, true)
     }
   }
 ]
@@ -506,7 +508,7 @@ export const enableLayoutSwitcher = (viewer) => {
 }
 
 export const clearViewer = (viewer) => {
-  currentLayout.includes('Compare') && viewer.clearViewer()
+  viewer.clearViewer()
 }
 
 export const setLayout = (layoutName, viewer) => {

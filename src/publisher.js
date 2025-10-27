@@ -5,19 +5,29 @@ const axios = require('axios')
 const args = require('./args')
 const { publicationDB } = require('./publicationdb')
 const fileStore = require(`./plugins/${process.env.FILESTORE_PLUGIN}`)
+const { additionalFeatureSettings } = require('./featuresettings')
 
 const files = {}
 
-const hashIt = (s) =>
+// Encoding for RFC3986 makes square brackets reserved (for IPv6)
+const encodeRFC3986URI = str => {
+  return encodeURI(str)
+    .replace(/%5B/, '[')
+    .replace(/%5D/, ']')
+    .replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+}
+
+const hashIt = s =>
   s.split('').reduce((a, b) => {
     a = (a << 5) - a + b.charCodeAt(0)
     return a & a
   }, 0)
-const timeout = (ms) => {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+const timeout = ms => {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-const createPublicationRequest = ({ policy, tags, sources, target, featureSettings }) => {
+const createPublicationRequest = ({ publicationVersion, policy, tags, sources, target, featureSettings }) => {
+  publicationVersion = publicationVersion || '1.x'
   const sourceTargetSettings = [
     {
       feature: { namespace: 'opentext.publishing.sources', name: 'LoadSources' },
@@ -34,10 +44,10 @@ const createPublicationRequest = ({ policy, tags, sources, target, featureSettin
   }
 
   return {
-    publicationVersion: '1.0.0',
+    publicationVersion: publicationVersion,
     policy,
     tags,
-    featureSettings: [...sourceTargetSettings, ...featureSettings]
+    featureSettings: [...sourceTargetSettings, ...featureSettings, ...additionalFeatureSettings]
   }
 }
 
@@ -61,14 +71,14 @@ const getPublication = async (token, pid) => {
 }
 
 // get publication artifact content
-const getPAContent = (publication) => {
+const getPAContent = publication => {
   return (
     publication._embedded &&
     publication._embedded['pa:get_publication_artifacts'] &&
     publication._embedded['pa:get_publication_artifacts'].length &&
     publication._embedded['pa:get_publication_artifacts'][0] &&
-    publication._embedded['pa:get_publication_artifacts'].find((e) => e.name === 'svg') &&
-    publication._embedded['pa:get_publication_artifacts'].find((e) => e.name === 'svg')._embedded[
+    publication._embedded['pa:get_publication_artifacts'].find(e => e.name === 'svg') &&
+    publication._embedded['pa:get_publication_artifacts'].find(e => e.name === 'svg')._embedded[
       'ac:get_artifact_content'
     ]
   )
@@ -81,11 +91,7 @@ const monitorPublication = async (token, _id, publication, publicationConfigs) =
 
   if (publication && publication.id) {
     try {
-      while (
-        publication.status &&
-        publication.status !== 'Complete' &&
-        publication.status !== 'Failed'
-      ) {
+      while (publication.status && publication.status !== 'Complete' && publication.status !== 'Failed') {
         const paContent = getPAContent(publication)
         if (paContent) {
           count = paContent.count
@@ -113,10 +119,7 @@ const monitorPublication = async (token, _id, publication, publicationConfigs) =
       `Publication monitor(final), id: ${publication.id} status: ${publication.status} pageCount: ${count} pageTotal: ${total}`
     )
     if (publication.status === 'Failed') {
-      console.log(
-        `Publication monitor, id: ${publication.id} failureMessage:`,
-        publication.failureMessage
-      )
+      console.log(`Publication monitor, id: ${publication.id} failureMessage:`, publication.failureMessage)
       console.log(`Publication monitor, id: ${publication.id} errors:`, publication.errors)
       console.log(`Publication monitor, id: ${publication.id} warnings:`, publication.warnings)
     }
@@ -137,7 +140,7 @@ const monitorPublication = async (token, _id, publication, publicationConfigs) =
   return
 }
 
-const getReqHeaders = (token) => {
+const getReqHeaders = token => {
   const headers = {
     authorization: token
   }
@@ -145,7 +148,7 @@ const getReqHeaders = (token) => {
     const testTenant = 'cfc6aeb1-628a-478b-b9d6-e77ac2d18d60'
     const jwt = token && token.replace('Bearer ', '')
     const jwtPayload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toString())
-    headers[`X-Tenant-Id`] = jwtPayload.tid || testTenant
+    headers[`X-Tenant-Id`] = jwtPayload.tid || jwtPayload.tenant_id || testTenant
   }
 
   return headers
@@ -169,10 +172,16 @@ const postPublication = async (token, data) => {
   return publication
 }
 
-const publishFile = async (token, filePath) => {
+const publishFile = async (token, filePath, forcedPolicyName = '') => {
   const _id = hashIt(filePath)
   let publicationResponse = {}
   let publicationConfig = {}
+
+  const policyName = forcedPolicyName
+    ? forcedPolicyName
+    : args.options.policyname
+    ? args.options.policyname
+    : 'ComparableBravaView'
 
   if (!args.options.forcepub) {
     try {
@@ -185,26 +194,23 @@ const publishFile = async (token, filePath) => {
       }
     } catch (exc) {
       // do not re-throw, let the publication process proceed
-      console.log(
-        'DB exception encountered querying for publication data. Proceeding to create publication',
-        exc
-      )
+      console.log('DB exception encountered querying for publication data. Proceeding to create publication', exc)
     }
   }
 
   try {
     publicationConfig = await fileStore.stagePublicationSource(token, filePath)
     const publicationRequest = createPublicationRequest({
-      publicationVersion: '1.0.0',
+      publicationVersion: '1.x',
       policy: {
         namespace: 'opentext.publishing.brava',
-        name: 'ComparableBravaView',
+        name: policyName,
         version: '1.x'
       },
       tags: [{ origin: 'ivsa' }],
       sources: [
         {
-          url: encodeURI(publicationConfig.url),
+          url: encodeRFC3986URI(publicationConfig.url),
           formatHint: publicationConfig.formatHint,
           filenameHint: publicationConfig.filenameHint
         }
@@ -219,16 +225,10 @@ const publishFile = async (token, filePath) => {
           },
           path: '/useLineWeightForWidth',
           value: false
-        },
-        {
-          feature: { namespace: 'opentext.publishing.renditions', name: 'ExportSvg' },
-          path: '/measure',
-          value: { filename: 'measure' }
         }
       ]
     })
     publicationResponse = await postPublication(token, publicationRequest)
-
     try {
       await publicationDB.update(
         { _id },
@@ -255,15 +255,24 @@ const publishFile = async (token, filePath) => {
   return { publicationResponse, publicationConfig }
 }
 
+const uploadOnlyFile = async (token, filePath) => {
+  const _id = hashIt(filePath)
+  let publicationResponse = {}
+  let publicationConfig = {}
+
+  try {
+    publicationConfig = await fileStore.stagePublicationSourceForQV(token, filePath)
+    publicationResponse = publicationConfig
+  } catch (exc) {
+    console.log('Unable to upload file', exc)
+    throw new Error('Exception encountered trying to upload a file', { cause: exc })
+  }
+
+  return { publicationResponse, publicationConfig }
+}
+
 // exported only for unit testing
-const publishXRLFiles = async (
-  token,
-  docLink,
-  docMimeType,
-  docFileName,
-  XRLFilePaths,
-  XRLMarkupsDirPath
-) => {
+const publishXRLFiles = async (token, docLink, docMimeType, docFileName, XRLFilePaths, XRLMarkupsDirPath) => {
   let hashString = ''
   XRLFilePaths.forEach(function (file) {
     hashString = hashString + file
@@ -283,10 +292,7 @@ const publishXRLFiles = async (
       }
     } catch (exc) {
       // do not re-throw, let the publication process proceed
-      console.log(
-        'DB exception encountered querying for publication data. Proceeding to create publication',
-        exc
-      )
+      console.log('DB exception encountered querying for publication data. Proceeding to create publication', exc)
     }
   }
 
@@ -304,7 +310,7 @@ const publishXRLFiles = async (
     }, [])
 
     const publicationRequest = createPublicationRequest({
-      publicationVersion: '1.0.0',
+      publicationVersion: '1.x',
       policy: {
         namespace: 'opentext.publishing.brava',
         name: 'ComparableBravaView',
@@ -313,7 +319,7 @@ const publishXRLFiles = async (
       tags: [{ origin: 'ivsa' }],
       sources: [
         {
-          url: encodeURI(docLink),
+          url: encodeRFC3986URI(docLink),
           formatHint: docMimeType,
           filenameHint: docFileName
         }
@@ -328,11 +334,6 @@ const publishXRLFiles = async (
           },
           path: '/useLineWeightForWidth',
           value: false
-        },
-        {
-          feature: { namespace: 'opentext.publishing.renditions', name: 'ExportSvg' },
-          path: '/measure',
-          value: { filename: 'measure' }
         },
         {
           feature: {
@@ -397,27 +398,100 @@ const publishXRLFiles = async (
   return publicationResponse
 }
 
-// publishes files in the given directory only, does not recursively process sub-directories
-const publishDirectory = async (token, dirPath) => {
-  const publishFiles = []
-  let publications = []
+// get all the files in the given directory and recursively process sub-directories
+const getFilesInDirectoryRecursive = async (dirPath, filesArray = []) => {
   try {
-    const files = await fsp.readdir(dirPath)
-    files.forEach(function (file) {
+    const files = fs.readdirSync(dirPath)
+    files.forEach(async function (file) {
       const filePath = `${dirPath}/${file}`
       if (!fs.lstatSync(filePath).isDirectory()) {
-        publishFiles.push(publishFile(token, filePath))
+        // Add the file to the array
+        filesArray.push(filePath)
+      } else if (process.env.INCLUDE_SUBDIRS === 'true') {
+        // Recursively get files in subdirectories
+        getFilesInDirectoryRecursive(filePath, filesArray)
       }
     })
+  } catch (error) {
+    console.log('Unable to get Files directory', error)
+    throw new Error('Exception encountered trying to get files in a directory', { cause: error })
+  }
+  return filesArray
+}
 
+// get all the files in the given directory and recursively process sub-directories
+const getFilesInDirectoryNonRecursive = async dirPath => {
+  let filesArray = []
+  try {
+    const files = fs.readdirSync(dirPath)
+    files.forEach(async function (file) {
+      const filePath = `${dirPath}/${file}`
+      if (!fs.lstatSync(filePath).isDirectory()) {
+        // Add the file to the array
+        filesArray.push(filePath)
+      }
+    })
+  } catch (error) {
+    console.log('Unable to get Files directory', error)
+    throw new Error('Exception encountered trying to get files in a directory', { cause: error })
+  }
+  return filesArray
+}
+
+// publishes files in the given directory only, does not recursively process sub-directories
+const publishDirectory = async (token, dirPath, forcedPolicyName = '') => {
+  const publishFiles = []
+
+  const filePaths = await Promise.resolve(
+    forcedPolicyName ? getFilesInDirectoryNonRecursive(dirPath) : getFilesInDirectoryRecursive(dirPath)
+  )
+  console.log('Publishing files', filePaths.length)
+  console.log(filePaths)
+  let publications = []
+  try {
+    filePaths.forEach(file => {
+      if (!fs.lstatSync(file).isDirectory()) {
+        publishFiles.push(publishFile(token, file, forcedPolicyName))
+      }
+    })
     const publicationsComplete = await Promise.all(publishFiles)
-    publications = publicationsComplete.map((pc) => pc.publicationResponse)
+    publications = publicationsComplete.map(pc => pc.publicationResponse)
   } catch (exc) {
     console.log('Unable to publish directory', exc)
     throw new Error('Exception encountered trying to publish a directory', { cause: exc })
   }
 
   return publications
+}
+
+// uploads (for client-side rendering) files in the given directory only, does not recursively process sub-directories
+const uploadOnlyDirectory = async (token, dirPath) => {
+  const uploadFiles = []
+
+  const filePaths = await Promise.resolve(getFilesInDirectoryNonRecursive(dirPath))
+  console.log('Uploading files', filePaths.length)
+  console.log(filePaths)
+  let publications = []
+  try {
+    filePaths.forEach(file => {
+      if (!fs.lstatSync(file).isDirectory()) {
+        uploadFiles.push(uploadOnlyFile(token, file))
+      }
+    })
+    const publicationsComplete = await Promise.all(uploadFiles)
+    publications = publicationsComplete.map(pc => pc.publicationResponse)
+  } catch (exc) {
+    console.log('Unable to upload directory', exc)
+    throw new Error('Exception encountered trying to uploadOnly a directory', { cause: exc })
+  }
+
+  return publications
+}
+
+const publishDirectoryMixed = async (token, dirPath) => {
+  const publicationsSvg = await publishDirectory(token, dirPath, 'ComparableBravaView')
+  const publicationsBdl = await publishDirectory(token, dirPath + '/bdl', 'WebAssemblyView')
+  return [...publicationsSvg, ...publicationsBdl]
 }
 
 const publishXRLMarkups = async (token, docLink, docMimeType, docFileName, XRLMarkupsDirPath) => {
@@ -432,14 +506,7 @@ const publishXRLMarkups = async (token, docLink, docMimeType, docFileName, XRLMa
       }
     })
 
-    publications = await publishXRLFiles(
-      token,
-      docLink,
-      docMimeType,
-      docFileName,
-      XRLFilePaths,
-      XRLMarkupsDirPath
-    )
+    publications = await publishXRLFiles(token, docLink, docMimeType, docFileName, XRLFilePaths, XRLMarkupsDirPath)
   } catch (exc) {
     console.log('Unable to publish directory', exc)
     throw new Error('Exception encountered trying to publish a directory of XRL files', {
@@ -450,7 +517,7 @@ const publishXRLMarkups = async (token, docLink, docMimeType, docFileName, XRLMa
   return publications
 }
 
-const getFileWithXRLMarkupsFilePaths = (dirPath) => {
+const getFileWithXRLMarkupsFilePaths = dirPath => {
   let publishDocumentFilePath
   let publishXRLMarkupDirFilePath
 
@@ -476,10 +543,7 @@ const publishFileWithXRLMarkups = async (token, dirPath) => {
     const fileWithXRLMarkupsFilePaths = getFileWithXRLMarkupsFilePaths(dirPath)
 
     // This document may already be in the Object (Publication) Store.
-    const publicationAndConfig = await publishFile(
-      token,
-      fileWithXRLMarkupsFilePaths.publishDocumentFilePath
-    )
+    const publicationAndConfig = await publishFile(token, fileWithXRLMarkupsFilePaths.publishDocumentFilePath)
     publication = publicationAndConfig.publicationResponse
     const publicationConfig = publicationAndConfig.publicationConfig
 
@@ -511,14 +575,33 @@ const publishHttpFile = async (token, filePath) => {
   const publishFiles = []
   let publications = []
   try {
-    filePath.forEach((httpFileURL) => {
+    filePath.forEach(httpFileURL => {
       publishFiles.push(publishFile(token, httpFileURL))
     })
+
     const publicationsComplete = await Promise.all(publishFiles)
-    publications = publicationsComplete.map((pc) => pc.publicationResponse)
+    publications = publicationsComplete.map(pc => pc.publicationResponse)
   } catch (exc) {
     console.log('Unable to publish http file URL', exc)
     throw new Error('Exception encountered trying to publish a http file URL', { cause: exc })
+  }
+  return publications
+}
+
+// uploadOnlys multiple HTTP file URLs provided in the command line args input
+const uploadOnlyHttpFile = async (token, filePath) => {
+  const publishFiles = []
+  let publications = []
+  try {
+    filePath.forEach(httpFileURL => {
+      publishFiles.push(uploadOnlyFile(token, httpFileURL))
+    })
+
+    const publicationsComplete = await Promise.all(publishFiles)
+    publications = publicationsComplete.map(pc => pc.publicationResponse)
+  } catch (exc) {
+    console.log('Unable to publish http file URL', exc)
+    throw new Error('Exception encountered trying to upload a http file URL', { cause: exc })
   }
   return publications
 }
@@ -539,7 +622,7 @@ const publish = async (token, filePath) => {
     const isCleaned = await cleanPublicationDB()
   }
 
-  const trimmedPaths = filePath.map((element) => {
+  const trimmedPaths = filePath.map(element => {
     return element.trim()
   })
 
@@ -561,10 +644,45 @@ const publish = async (token, filePath) => {
       //     |-- XRLMarkup2.xrl
       publications.push(await publishFileWithXRLMarkups(token, trimmedPaths[0]))
     } else {
-      publications = await publishDirectory(token, trimmedPaths[0])
+      const dirBDLPresent = files.includes('bdl')
+      if (dirBDLPresent) {
+        // NOTE: It is assumed the mixed formats documents publishing is done with this file hierarchy:
+        // directoryDocumentsMixedFormats
+        // |
+        // |-- document1ToSVG
+        // |-- document2ToSVG
+        // |-- bdl
+        //     |
+        //     |-- document3ToBDL
+        //     |-- document4ToBDL
+        // NOTE2: This structure does not support recursive sub-directory publishing. All SVGs at one level. All BDLs at one level.
+        publications = await publishDirectoryMixed(token, trimmedPaths[0])
+      } else {
+        publications = await publishDirectory(token, trimmedPaths[0])
+      }
     }
   } else {
     const publicationComplete = await publishFile(token, trimmedPaths[0])
+    const publication = publicationComplete.publicationResponse
+    publications = [publication]
+  }
+
+  return publications
+}
+
+const uploadOnly = async (token, filePath) => {
+  let publications = []
+
+  const trimmedPaths = filePath.map(element => {
+    return element.trim()
+  })
+
+  if (trimmedPaths[0].startsWith('http')) {
+    publications = await uploadOnlyHttpFile(token, trimmedPaths)
+  } else if (fs.lstatSync(trimmedPaths[0]).isDirectory()) {
+    publications = await uploadOnlyDirectory(token, trimmedPaths[0])
+  } else {
+    const publicationComplete = await uploadOnlyFile(token, trimmedPaths[0])
     const publication = publicationComplete.publicationResponse
     publications = [publication]
   }
@@ -579,5 +697,8 @@ module.exports = {
   publishHttpFile,
   publish,
   monitorPublication,
-  publishXRLFiles
+  publishXRLFiles,
+  publishDirectoryMixed,
+  uploadOnly,
+  uploadOnlyHttpFile
 }

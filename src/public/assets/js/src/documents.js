@@ -74,6 +74,7 @@ export const generatePublicationOptions = (publications, viewer) => {
     } else {
       viewer.viewPublication(publicationId)
     }
+    viewer.setCurrentPage(0)
   }
 
   const setComparePublication = (publicationId) => {
@@ -108,7 +109,7 @@ export const generatePublicationOptions = (publications, viewer) => {
   viewAsBinderInput.addEventListener('change', handleBinderModeChange)
 }
 
-export const enablePublicationSelector = (publications = [], compare = false) => {
+export const enablePublicationSelector = (viewer, publications = [], compare = false) => {
   if (publications.length > 1) {
     const binderControl = document.querySelector('.binder-control')
     const primaryControl = document.querySelector('.primary-control')
@@ -124,6 +125,7 @@ export const enablePublicationSelector = (publications = [], compare = false) =>
       binderControl.classList.remove('hidden')
       if (document.querySelector('#view-binder-toggle').checked) {
         primaryControl.classList.add('hidden')
+        viewer.viewBinder(publications.map((p) => p.id))
       } else {
         primaryControl.classList.remove('hidden')
       }

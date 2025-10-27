@@ -13,8 +13,9 @@ const storage = multer.diskStorage({
     cb(null, `${process.cwd()}/src/public`)
   },
   filename: function (req, file, cb) {
-    const parsedPath = path.parse(file.originalname)
-    const filename = `file_${hashIt(file.originalname)}_${parsedPath.base}`
+    const originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
+    const parsedPath = path.parse(originalname)
+    const filename = `file_${hashIt(originalname)}_${parsedPath.base}`
     cb(null, filename)
   }
 })
@@ -57,11 +58,27 @@ const download = async (req, res) => {
   }
 }
 
+const deleteFile = async (req, res) => {
+  const fileName = normalizeName(req.params.fileName, res)
+  if (fileName) {
+    console.log('delete requested for', fileName)
+    const file = `${process.cwd()}/src/public/${fileName}`
+    fs.unlink(file, (err) => {
+      if (err) {
+        console.error(`delete requested for ${fileName} failed, error:`, err);
+        return res.status(500).send(err.message)
+      } else {
+        res.end()
+      }
+    })
+  }
+}
+
 const normalizeName = (name, res) => {
   if (typeof name !== 'string') {
     name = String(name)
   }
-  if (/[^a-z0-9\-#$%&'*+.\^_`|~]/i.test(name)) {
+  if (name.includes('./') || name.includes('<script')) {
     console.log('Access denied', name)
     res.status(403).send('Access denied')
     return
@@ -70,7 +87,7 @@ const normalizeName = (name, res) => {
 }
 
 const access = async (req, res) => {
-  const fileName = req.params.fileName
+  const fileName = normalizeName(req.params.fileName, res)
   console.log('access requested for', fileName)
   return res.status(200).end()
 }
@@ -78,5 +95,6 @@ const access = async (req, res) => {
 module.exports = {
   upload,
   download,
+  deleteFile,
   access
 }

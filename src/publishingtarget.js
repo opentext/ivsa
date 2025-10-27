@@ -1,6 +1,6 @@
 require('dotenv').config()
 
-const getPublishingTarget = (tid) => {
+const getPublishingTarget = (tid, contentId) => {
   const plugin = process.env.FILESTORE_PLUGIN
   let publishingTarget = process.env.PUBLISHING_TARGET
   if (publishingTarget) {
@@ -11,7 +11,11 @@ const getPublishingTarget = (tid) => {
         publishingTarget = ''
         break
       case 'cssv2':
-        publishingTarget = process.env.CSS_AUTHORITY + '/v2/tenant/' + tid + '/content'
+        if (contentId) {
+          publishingTarget = process.env.CSS_AUTHORITY + '/v2/content/' + contentId + '/renditions'
+        } else {
+          publishingTarget = process.env.CSS_AUTHORITY + '/v2/tenant/' + tid + '/content'
+        }
         break
       case 'cssv3':
         publishingTarget = 'css-v3://upload?authzPolicy=delegateToSource'

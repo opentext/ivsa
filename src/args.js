@@ -30,6 +30,13 @@ const optionDefinitions = [
       'This can be used only along with http file url input option.'
   },
   {
+    name: 'policyname',
+    alias: 'P',
+    type: String,
+    description:
+      'The policy name to use for the publish request. The "ComparableBravaView" policy will be used if this option is not present.'
+  },
+  {
     name: 'usepjs',
     alias: 'r',
     type: Boolean,
@@ -65,6 +72,19 @@ const optionDefinitions = [
     alias: 'N',
     description:
       'Immediately exit the application CLI after opening the viewer. NOTE: Viewer UI refresh will fail if this option is used.'
+  },
+  {
+    name: 'ivview',
+    type: Boolean,
+    alias: 'V',
+    description: 'iv-view.'
+  },
+  {
+    name: 'quickview',
+    type: Boolean,
+    alias: 'Q',
+    description:
+      'Quick view (client-side, upload-only, no publication) rendering of the source file with pdf-js, tiff-js or native browser'
   },
   { name: 'help', alias: 'h', type: Boolean, description: 'Print this usage guide.' }
 ]

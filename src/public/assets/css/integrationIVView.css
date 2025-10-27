@@ -1,0 +1,120 @@
+/* #region Base Styles */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden; /* Hide any potential overflow */
+}
+
+header {
+  height: 35px;
+  background: #078db3;
+  background: var(--clr-primary);
+  color: #fff;
+  color: var(--clr-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.controls,
+.publication-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing);
+}
+
+.controls button {
+  display: block;
+}
+
+.event-display {
+  flex: 1 0 350px;
+  display: flex;
+  flex-direction: column;
+  color: #202020;
+  color: var(--clr-dark);
+}
+
+.event-display > * {
+  padding: var(--spacing);
+}
+.event-display h2 {
+  background: #c0c0c0;
+  background: var(--clr-light-alt);
+}
+
+#event-log {
+  flex: 1 0 auto;
+  max-height: 500px;
+  background: #f5f5f5;
+  background: var(--clr-light);
+  list-style-type: none;
+  margin: 0;
+  overflow: auto;
+}
+
+.viewer-container {
+  flex: 1 1 350px;
+}
+
+/* #region Utility Classes */
+.hidden {
+  display: none;
+}
+.current {
+  border-color: #078db3;
+  border-color: var(--clr-primary-alt);
+  color: #fff;
+  box-shadow: inset 0 0 5rem 5rem #078db3;
+  box-shadow: inset 0 0 5rem 5rem var(--clr-primary-alt);
+}
+
+#main {
+  display: flex;
+  height: 100%;
+}
+
+#layoutControls {
+  max-width: 350px;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+  
+  font-family: Arial, Helvetica, sans-serif;
+  
+  /* CSS Variables */
+  --clr-primary: #078db3;
+  --clr-primary-alt: #078db3;
+  --clr-dark: #202020;
+  --clr-light: #f5f5f5;
+  --clr-light-alt: #c0c0c0;
+  --clr-white: #ffffff;
+  --spacing: 5px;
+
+  box-sizing: border-box;
+  background: #202020;
+  background: var(--clr-dark);
+  color: #fff;
+  color: var(--clr-white);
+  max-width: 350px;
+  padding: 10px;
+  gap: var(--spacing);
+}
+
+#content {
+  position: relative;
+  flex: 1;
+  height: 100%;
+}
+
+#iv-view-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box; /* Include padding and border in width */
+  padding: 10px; /* Example padding */
+}
+/* #endregion */
